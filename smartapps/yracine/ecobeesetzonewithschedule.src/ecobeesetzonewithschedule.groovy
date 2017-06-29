@@ -25,7 +25,7 @@ definition(
 	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/ecobee@2x.png"
 )
 
-def get_APP_VERSION() {return "7.5.2"}
+def get_APP_VERSION() {return "7.5.3"}
 
 
 preferences {
@@ -1345,7 +1345,7 @@ def motionEvtHandler(evt, indice) {
 	traceEvent(settings.logFilter,"motionEvtHandler>$evt.name: $evt.value",settings.detailedNotif)
 	def setAwayOrPresent = (setAwayOrPresentFlag)?:false
 	if (evt.value == "active") {
-		def key= "roomName${indice}"    
+		def key= "{indice}"    
 		def roomName= settings[key]
 		key = "occupiedMotionTimestamp${indice}"       
 		state[key]= now()     
@@ -3444,6 +3444,9 @@ private def getCurrentVentLevel(ventSwitch) {
 	def ventLevel=null
 	try {
 		ventLevel = ventSwitch.currentValue("level")     
+		
+		traceEvent(settings.logFilter,"getCurrentVentLevel> current vent level from ${ventSwitch} is ${ventLevel}",settings.detailedNotif,
+			get_LOG_TRACE(),settings.detailedNotif)
 	} catch (any) {
 		traceEvent(settings.logFilter,"getCurrentVentLevel>Not able to get current vent level from ${ventSwitch}",settings.detailedNotif,
 			get_LOG_WARN(),settings.detailedNotif)
@@ -3494,7 +3497,7 @@ private def setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel=100) {
 		roomName = settings[key]
 	}
 	try {
-		def currentVentLevel = ventSwitch.getLevel()
+		def currentVentLevel = getCurrentVentLevel(ventSwitch)		
 		if(switchLevel != currentVentLevel){
 			ventSwitch.setLevel(switchLevel)	
 					
@@ -3559,7 +3562,9 @@ private def setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel=100) {
 
 
 private def control_vent_switches_in_zone(indiceSchedule, switchLevel=100) {
-
+	traceEvent(settings.logFilter,"ontrol_vent_switches_in_zone> Schedule #${indiceSchedule} and switchLevel ${switchLevel}",settings.detailedNotif,
+		get_LOG_INFO())
+	
 	def key = "includedZones$indiceSchedule"
 	def zones = settings[key]
 	def ventSwitchesOnSet=[]
