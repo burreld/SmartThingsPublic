@@ -18,14 +18,14 @@
 definition(
 	name: "${get_APP_NAME()}",
 	namespace: "yracine",
-	author: "Yves Racine",
+	author: "Yves Racine, modifed by David Burrell",
 	description: "Enables Zoned Heating/Cooling based on your ecobee schedule(s)- coupled with smart vents (optional) for better temp settings control throughout your home",
 	category: "My Apps",
 	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Partner/ecobee.png",
 	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/ecobee@2x.png"
 )
 
-def get_APP_VERSION() {return "7.5.3"}
+def get_APP_VERSION() {return "7.5.4"}
 
 
 preferences {
@@ -1810,11 +1810,13 @@ def initialize() {
 			def key = "ventSwitch${j}$indiceRoom"
 			def vent = settings[key]
 				if (vent != null) {
-					subscribe(vent, "temperature", ventTemperatureHandler)
+					subscribe(vent, "temperature", ventTemperatureHandler)			
+					
 				} /* end if vent != null */
 		} /* end for vent switches */
 		def key = "occupiedMotionCounter${indiceRoom}"       
-		state[key]=0	 // initalize the motion counter to zero		                
+		state[key]=0	 // initalize the motion counter to zero	
+		
 	} /* end for rooms */
 
 	// subscribe all motion sensors to check for active motion in rooms
@@ -2128,6 +2130,12 @@ private def isRoomOccupied(sensor, indiceRoom) {
 		return nbMotionNeeded
 	} 
 	  
+	// This is my code .  Find a way to tag the last motion after the sleep starts or 
+	// if a room is unoccupied when sleep start then the vent will stay closed if motion is needed
+	// otherwise it will stay open until sleep is gone
+	key = "occupiedMotionTimestamp${indice}"
+	state[key]
+	
 	key = "residentsQuietThreshold$indiceRoom"
 	def threshold = (settings[key]) ?: 15 // By default, the delay is 15 minutes 
 
@@ -3275,8 +3283,8 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 				settings.detailedNotif)            
 		
 			for (int j = 1;(j <= get_MAX_VENTS()); j++)  {
-				key = "ventSwitch${j}$indiceRoom"
-				def ventSwitch = settings[key]
+				def ventSwitchKey = "ventSwitch${j}$indiceRoom"
+				def ventSwitch = settings[ventSwitchKey]
 				if (ventSwitch != null) {
 					def temp_in_vent=getTemperatureInVent(ventSwitch)    
 					// compile some stats for the dashboard                    
@@ -3516,14 +3524,12 @@ private def setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel=100) {
 		}         
 	} catch (e) {
 		if (switchLevel >0) {
-			ventSwitch.off() // alternate off/on to clear potential obstruction  			      
-			ventSwitch.on()        
+			ventSwitch.clearObstruction() // alternate off/on to clear potential obstruction  			      
 			traceEvent(settings.logFilter, "setVentSwitchLevel>not able to set ${ventSwitch} to ${switchLevel} (exception $e), trying to turn it on",
 				true, get_LOG_WARN(),settings.detailedNotif)  
 			return false                
 		} else {
-			ventSwitch.on() // alternate on/off to clear potential obstruction             
-			ventSwitch.off()        
+			ventSwitch.clearObstruction() // alternate on/off to clear potential obstruction             
 			traceEvent(settings.logFilter, "setVentSwitchLevel>not able to set ${ventSwitch} to ${switchLevel} (exception $e), trying to turn it off",
 				true, get_LOG_WARN(),settings.detailedNotif)           
 			return false                
@@ -3543,8 +3549,8 @@ private def setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel=100) {
 	int currentLevel=ventSwitch.currentValue("level")    
 	def currentStatus=ventSwitch.currentValue("switch")    
 	if (currentStatus=="obstructed") {
-		ventSwitch.off() // alternate off/on to clear obstruction        
-		ventSwitch.on()  
+		ventSwitch.clearObstruction() // alternate off/on to clear obstruction        
+		
 		traceEvent(settings.logFilter, "setVentSwitchLevel>error while trying to send setLevel command, switch ${ventSwitch} is obstructed",
 			true, get_LOG_WARN(),settings.detailedNotif)            
 		return false   
@@ -3560,9 +3566,8 @@ private def setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel=100) {
 
 
 
-
 private def control_vent_switches_in_zone(indiceSchedule, switchLevel=100) {
-	traceEvent(settings.logFilter,"ontrol_vent_switches_in_zone> Schedule #${indiceSchedule} and switchLevel ${switchLevel}",settings.detailedNotif,
+	traceEvent(settings.logFilter,"control_vent_switches_in_zone> Schedule #${indiceSchedule} and switchLevel ${switchLevel}",settings.detailedNotif,
 		get_LOG_INFO())
 	
 	def key = "includedZones$indiceSchedule"
