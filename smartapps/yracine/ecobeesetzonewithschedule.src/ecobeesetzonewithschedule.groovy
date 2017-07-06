@@ -1600,7 +1600,7 @@ def check_use_alternative_cooling(data) {
 		if ((currentMode in ['cool','off', 'auto']) && ((outdoorTemp) &&
 			(outdoorTemp.toFloat() <= lessCoolThreshold.toFloat())) && 
 			(currentTemp.toFloat() > desiredCoolTemp.toFloat())) {
-			evaporativeCoolerSwitch.on()
+			evaporativeCoolerSwitch
 			if ((!useAlternativeWhenCooling) && (currentMode != 'off')) {                
 				traceEvent(settings.logFilter,"check_use_alternative_cooling>about to turn off the thermostat $thermostat, saving the current thermostat's mode=$currentMode",
 					settings.detailedNotif,get_LOG_WARN(),settings.detailedNotif)            
@@ -1682,7 +1682,7 @@ def check_use_alternative_cooling(data) {
 						restore_thermostat_mode()  // set the thermostat back to the mode it was before using alternative cooling           
 					}            
 				}                    
-				evaporativeCoolerSwitch.on()	
+				evaporativeCoolerSwitch	
 				traceEvent(settings.logFilter,"check_use_alternative_cooling>schedule $scheduleName: turned on the alternative cooling switch (${evaporativeCoolerSwitch})",
 					settings.detailedNotif, get_LOG_INFO(),settings.detailedNotif)
 				if (adjustmentFanFlag) {             
@@ -3088,7 +3088,7 @@ private def adjust_thermostat_setpoint_in_zone(indiceSchedule) {
 
 private def adjust_vent_settings_in_zone(indiceSchedule) {
 	def MIN_OPEN_LEVEL_IN_ZONE=(minVentLevelInZone!=null)?((minVentLevelInZone>=0 && minVentLevelInZone <=100)?minVentLevelInZone:10):10
-	float desiredTemp, avg_indoor_temp, avg_temp_diff, total_temp_diff=0, total_temp_in_vents=0,median
+	float desiredTemp, avg_indoor_temp, avg_temp_diff, total_temp_diff=0, total_temp_in_vents=0
 	def indiceRoom
 	boolean closedAllVentsInZone=true
 	int nbVents=0,nbRooms=0,total_level_vents=0
@@ -3096,13 +3096,11 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 	def ventSwitchesOnSet=[]
 	def fullyCloseVents = (fullyCloseVentsFlag) ?: false
 	def adjustmentBasedOnContact=(settings.setVentAdjustmentContactFlag)?: false
+	
+	def scheduleName = settings["scheduleName$indiceSchedule"]
 
-	def key = "scheduleName$indiceSchedule"
-	def scheduleName = settings[key]
-
-	key= "openVentsFanOnlyFlag$indiceSchedule"
-	def openVentsWhenFanOnly = (settings[key])?:false
-	String operatingState = thermostat?.currentThermostatOperatingState           
+	def openVentsWhenFanOnly = (settings["openVentsFanOnlyFlag$indiceSchedule"])?:false
+	def operatingState = thermostat?.currentThermostatOperatingState           
 
 	if (openVentsWhenFanOnly && (operatingState.toUpperCase().contains("FAN ONLY"))) { 
  		// If fan only and the corresponding flag is true, then set all vents to 100% and finish the processing
@@ -3112,13 +3110,12 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 		return ventSwitchesOnSet         
 	}
 
-	key = "includedZones$indiceSchedule"
-	def zones = settings[key]
+	def zones = settings["includedZones$indiceSchedule"]
 	def indoor_all_zones_temps=[]
   
 	traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}: zones= ${zones}")
-	key = "setRoomThermostatsOnlyFlag$indiceSchedule"
-	def setRoomThermostatsOnlyFlag = settings[key]
+	
+	def setRoomThermostatsOnlyFlag = settings["setRoomThermostatsOnlyFlag$indiceSchedule"]
 	def setRoomThermostatsOnly = (setRoomThermostatsOnlyFlag) ?: false
 	if (setRoomThermostatsOnly) {
 		traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}:all room Tstats set and setRoomThermostatsOnlyFlag= true,exiting",
@@ -3126,31 +3123,24 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 		return ventSwitchesOnSet			    
 	}    
 	int openVentsCount=0,closedVentsCount=0
-	String mode = thermostat?.currentThermostatMode.toString()
+	
 	float currentTempAtTstat = thermostat?.currentTemperature.toFloat().round(1)
-	if (mode.contains('heat')) {
-		desiredTemp = thermostat.currentHeatingSetpoint.toFloat().round(1)  
-	} else if (mode=='cool') {    
-		desiredTemp = thermostat.currentCoolingSetpoint.toFloat().round(1) 
-	} else if (mode=='auto') {    
-		median = (thermostat?.currentCoolingSetpoint + thermostat?.currentHeatingSetpoint).toFloat()
-		median= (median)? (median/2).round(1): (scale=='C')?21:72
-		if (currentTempAtTstat > median) {
-			desiredTemp =thermostat.currentCoolingSetpoint.toFloat().round(1)              
-		} else {
-			desiredTemp =thermostat.currentHeatingSetpoint.toFloat().round(1)                     
-		}                        
-	} else {
-		desiredTemp = thermostat?.currentHeatingSetpoint 
-		desiredTemp = (desiredTemp)? desiredTemp.toFloat().round(1): (scale=='C')?21:72
-	}    
+	
+	if (operatingState == 'heating') {
+		desiredTemp = thermostat.currentHeatingSetpoint.toFloat().round(1) + 2 
+	} 
+	else if (operatingState =='cooling') {    
+		desiredTemp = thermostat.currentCoolingSetpoint.toFloat().round(1) - 2
+	} 
+	else{ // If we are not heating or cooling then there is no need to set the vents
+		return ventSwitchesOnSet
+	}
+    
 	traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}, desiredTemp=${desiredTemp}",settings.detailedNotif)
 	indoor_all_zones_temps.add(currentTempAtTstat)
 
-	key = "setVentLevel${indiceSchedule}"
-	def defaultSetLevel = settings[key]
-	key = "resetLevelOverrideFlag${indiceSchedule}"	
-	boolean resetLevelOverrideFlag = settings[key]
+	def defaultSetLevel = settings["setVentLevel${indiceSchedule}"]
+	boolean resetLevelOverrideFlag = settings["resetLevelOverrideFlag${indiceSchedule}"]
 	state?.activeZones=zones
 	int min_open_level=100, max_open_level=0    
 	float min_temp_in_vents=200, max_temp_in_vents=0    
@@ -3183,35 +3173,21 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 		def zoneDetails=zone.split(':')
 		def indiceZone = zoneDetails[0]
 		def zoneName = zoneDetails[1]
-		key = "includedRooms$indiceZone"
-		def rooms = settings[key]
+		def rooms = settings["includedRooms$indiceZone"]
         
-		key  = "desiredHeatDeltaTemp$indiceZone"
-		def desiredHeatDelta =  settings[key]           
-		key  = "desiredCoolDeltaTemp$indiceZone"
-		def desiredCoolDelta =  settings[key]           
+		def desiredHeatDelta =  settings["desiredHeatDeltaTemp$indiceZone"]           
+		def desiredCoolDelta =  settings["desiredCoolDeltaTemp$indiceZone"]           
 
-		if (mode.contains('heat')) {
-			desiredTemp = desiredTemp + (desiredHeatDelta?:0) 
+		if (operatingState == 'heating') {
+			desiredTemp += desiredHeatDelta?:0 
 			traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}, zone=${zoneName}, desiredHeatDelta=${desiredHeatDelta}",			
 				settings.detailedNotif)     
-		} else if (mode=='cool') {    
-			desiredTemp = desiredTemp + (desiredCoolDelta?:0)
+		} else if (operatingState == 'cooling') {    
+			desiredTemp += desiredCoolDelta?:0
 			traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}, zone=${zoneName}, desiredCoolDelta=${desiredCoolDelta}",			
 				settings.detailedNotif)     
-		} else if (mode=='auto') {    
-			if (currentTempAtTstat > median) {
-				desiredTemp =desiredTemp + (desiredCoolDelta?:0)              
-			} else {
-				desiredTemp =desiredTemp + (desiredHeatDelta?:0)                    
-			}                        
-			traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}, zone=${zoneName}, desiredHeatDelta=${desiredHeatDelta}",			
-				settings.detailedNotif)     
-			traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}, zone=${zoneName}, desiredCoolDelta=${desiredCoolDelta}",			
-				settings.detailedNotif)     
-		} else {
-			desiredTemp = desiredTemp +  (desiredHeatDelta?:0)         
-		}    
+		} 
+ 
 		for (room in rooms) {
 			nbRooms++ 		       	
 			switchLevel =null	// initially set to null for check later
@@ -3222,13 +3198,11 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 				continue
 			}
          
-			key = "needOccupiedFlag$indiceRoom"
-			def needOccupied = (settings[key]) ?: false
+			def needOccupied = (settings["needOccupiedFlag$indiceRoom"]) ?: false
 			traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>looping thru all rooms,now room=${roomName},indiceRoom=${indiceRoom}, needOccupied=${needOccupied}",
 				settings.detailedNotif)            
 			if (needOccupied) {
-				key = "motionSensor$indiceRoom"
-				def motionSensor = settings[key]
+				def motionSensor = settings["motionSensor$indiceRoom"]
 				if (motionSensor != null) {
 					if (!isRoomOccupied(motionSensor, indiceRoom)) {
 						switchLevel = (fullyCloseVents)? 0 :MIN_OPEN_LEVEL_IN_ZONE // setLevel at a minimum as the room is not occupied.
@@ -3240,39 +3214,47 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 			traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>AdjustmentBasedOnContact=${adjustmentBasedOnContact}",settings.detailedNotif)
             
 			if (adjustmentBasedOnContact) { 
-				key = "contactSensor$indiceRoom"
-				def contactSensor = settings[key]
+				def contactSensor = settings["contactSensor$indiceRoom"]
 				traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>contactSensor=${contactSensor}",settings.detailedNotif)
 				if (contactSensor !=null) {
-					key = "contactClosedLogicFlag${indiceRoom}"            
-					boolean closedContactLogicFlag= (settings[key])?:false            
-					boolean isContactOpen = any_contact_open(contactSensor)            
+					boolean closedContactLogicFlag= (settings["contactClosedLogicFlag${indiceRoom}"])?:false            
+					boolean isContactOpen = any_contact_open(contactSensor)      
+					      
 					if ((!closedContactLogicFlag) && isContactOpen ) {
-						switchLevel=((fullyCloseVents)? 0: MIN_OPEN_LEVEL_IN_ZONE)					                
+						switchLevel = ((fullyCloseVents)? 0: MIN_OPEN_LEVEL_IN_ZONE)		
+									                
 						traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}, in zone ${zoneName}, a contact ${contactSensor} is open, the vent(s) in ${roomName} set to mininum level=${switchLevel}",
-							settings.detailedNotif, get_LOG_INFO(), settings.detailedNotif)                        
+							settings.detailedNotif, get_LOG_INFO(), settings.detailedNotif)  
+						                      
 					} else if (closedContactLogicFlag && (!isContactOpen)) {
-						switchLevel=((fullyCloseVents)? 0: MIN_OPEN_LEVEL_IN_ZONE)					                
+						switchLevel = ((fullyCloseVents)? 0: MIN_OPEN_LEVEL_IN_ZONE)					                
+						
 						traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName}, in zone ${zoneName}, contact(s) ${contactSensor} closed, the vent(s) in ${roomName} set to mininum level=${switchLevel}",
-							settings.detailedNotif, get_LOG_INFO(), settings.detailedNotif)                        
+							settings.detailedNotif, get_LOG_INFO(), settings.detailedNotif) 
+						                       
 					}                
 				}            
 			}            
-			if (switchLevel ==null) {
-				def tempAtSensor =getSensorTempForAverage(indiceRoom)			
+			if (switchLevel == null) {
+				def tempAtSensor = getSensorTempForAverage(indiceRoom)
+							
 				if (tempAtSensor == null) {
 					tempAtSensor= currentTempAtTstat				            
 				}
+				
 				float temp_diff_at_sensor = (tempAtSensor - desiredTemp).toFloat().round(1)
-				total_temp_diff = total_temp_diff + temp_diff_at_sensor 
-				traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>thermostat mode = ${mode}, schedule ${scheduleName}, in zone ${zoneName}, room ${roomName}, temp_diff_at_sensor=${temp_diff_at_sensor}, avg_temp_diff=${avg_temp_diff}",
-					settings.detailedNotif)                
-				if ((mode=='cool') || ((mode=='auto') && (currentTempAtTstat> median))) {
+				
+				total_temp_diff += temp_diff_at_sensor 
+				
+				traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>thermostat operatingState = ${operatingState}, schedule ${scheduleName}, in zone ${zoneName}, room ${roomName}, temp_diff_at_sensor=${temp_diff_at_sensor}, avg_temp_diff=${avg_temp_diff}",
+					settings.detailedNotif)         
+				       
+				if (operatingState == "cooling") {
 					avg_temp_diff = (avg_temp_diff !=0) ? avg_temp_diff : (0.1)  // to avoid divided by zero exception
 					switchLevel = ((temp_diff_at_sensor / avg_temp_diff) * 100).round()
 					switchLevel =( switchLevel >=0)?((switchLevel<100)? switchLevel: 100):0
 					switchLevel=(temp_diff_at_sensor <=0)? ((fullyCloseVents)? 0: MIN_OPEN_LEVEL_IN_ZONE): ((temp_diff_at_sensor >0) && (avg_temp_diff<0))?100:switchLevel
-				} else {
+				} else if(operatingState == "heating"){
 					avg_temp_diff = (avg_temp_diff !=0) ? avg_temp_diff : (-0.1)  // to avoid divided by zero exception
 					switchLevel = ((temp_diff_at_sensor / avg_temp_diff) * 100).round()
 					switchLevel =( switchLevel >=0)?((switchLevel<100)? switchLevel: 100):0
@@ -3283,38 +3265,49 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 				settings.detailedNotif)            
 		
 			for (int j = 1;(j <= get_MAX_VENTS()); j++)  {
-				def ventSwitchKey = "ventSwitch${j}$indiceRoom"
-				def ventSwitch = settings[ventSwitchKey]
+				def ventSwitch = settings["ventSwitch${j}$indiceRoom"]
 				if (ventSwitch != null) {
-					def temp_in_vent=getTemperatureInVent(ventSwitch)    
+					def temp_in_vent = getTemperatureInVent(ventSwitch)
+					    
 					// compile some stats for the dashboard                    
 					if (temp_in_vent) {                                   
 						min_temp_in_vents=(temp_in_vent < min_temp_in_vents)? temp_in_vent.toFloat().round(1) : min_temp_in_vents
 						max_temp_in_vents=(temp_in_vent > max_temp_in_vents)? temp_in_vent.toFloat().round(1) : max_temp_in_vents
 						total_temp_in_vents=total_temp_in_vents + temp_in_vent
-					}                                        
-					def switchOverrideLevel=null                 
+					}       
+					                                 
+					def switchOverrideLevel = null                 
+					
 					nbVents++
+					
 					if (!resetLevelOverrideFlag) {
-						key = "ventLevel${j}$indiceRoom"
-						switchOverrideLevel = settings[key]
+						switchOverrideLevel = settings["ventLevel${j}$indiceRoom"]
 					}                        
 					if (switchOverrideLevel) {                
 						traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>in zone=${zoneName},room ${roomName},set ${ventSwitch} to switchOverrideLevel =${switchOverrideLevel}%",
 							settings.detailedNotif)                        
+						
 						switchLevel = ((switchOverrideLevel >= 0) && (switchOverrideLevel<= 100))? switchOverrideLevel:switchLevel                     
+						
 					} else if (defaultSetLevel)  {
 						traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>in zone=${zoneName},room ${roomName},set ${ventSwitch} to defaultSetLevel =${defaultSetLevel}%",
 							settings.detailedNotif)                        
-						switchLevel = ((defaultSetLevel >= 0) && (defaultSetLevel<= 100))? defaultSetLevel:switchLevel                     
+						
+						switchLevel = ((defaultSetLevel >= 0) && (defaultSetLevel<= 100))? defaultSetLevel : switchLevel                     
+						
 					}
-					setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel)                    
+					
+					setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel)
+					                    
 					traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>in zone=${zoneName},room ${roomName},set ${ventSwitch} to switchLevel =${switchLevel}%",
-						settings.detailedNotif)                    
+						settings.detailedNotif)              
+					      
 					// compile some stats for the dashboard                    
-					min_open_level=(switchLevel < min_open_level)? switchLevel.toInteger() : min_open_level
-					max_open_level=(switchLevel > max_open_level)? switchLevel.toInteger() : max_open_level
-					total_level_vents=total_level_vents + switchLevel.toInteger()
+					min_open_level = (switchLevel < min_open_level) ? switchLevel.toInteger() : min_open_level
+					max_open_level = (switchLevel > max_open_level) ? switchLevel.toInteger() : max_open_level
+					
+					total_level_vents = total_level_vents + switchLevel.toInteger()
+					
 					if (switchLevel > MIN_OPEN_LEVEL_IN_ZONE) {      // make sure that the vents are set to a minimum level in zone, otherwise they are considered to be closed              
 						ventSwitchesOnSet.add(ventSwitch)
 						closedAllVentsInZone=false
@@ -3328,12 +3321,14 @@ private def adjust_vent_settings_in_zone(indiceSchedule) {
 	} /* end for zones */
 
 	if ((!fullyCloseVents) && (closedAllVentsInZone) && (nbVents)) {
-		    	
-		switchLevel=MIN_OPEN_LEVEL_IN_ZONE        
-		ventSwitchesOnSet=control_vent_switches_in_zone(indiceSchedule, switchLevel)		    
+				    	
+		switchLevel = MIN_OPEN_LEVEL_IN_ZONE        
+		ventSwitchesOnSet = control_vent_switches_in_zone(indiceSchedule, switchLevel)	
+			    
 		traceEvent(settings.logFilter,"schedule ${scheduleName}, safeguards on: set all ventSwitches to ${switchLevel}% to avoid closing all of them",
 			settings.detailedNotif, get_LOG_INFO(),settings.detailedNotif)       
 	}    
+	
 	traceEvent(settings.logFilter,"adjust_vent_settings_in_zone>schedule ${scheduleName},ventSwitchesOnSet=${ventSwitchesOnSet}",settings.detailedNotif)
 	
 	// Save the stats for the dashboard
@@ -3506,8 +3501,13 @@ private def setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel=100) {
 	}
 	try {
 		def currentVentLevel = getCurrentVentLevel(ventSwitch)		
-		if(switchLevel != currentVentLevel){
-			ventSwitch.setLevel(switchLevel)	
+		if(switchLevel != currentVentLevel || (switchLevel == 0 && ventSwith.currentValue("switch") == "on")){
+			if(switchLevel == 0){
+				ventSwitch.off()
+			}
+			else{
+				ventSwitch.setLevel(switchLevel)					
+			}
 					
 			if (roomName) {       
 				traceEvent(settings.logFilter,"set ${ventSwitch} to level ${switchLevel} in room ${roomName} from ${currentVentLevel} to reach desired temperature",settings.detailedNotif, 
@@ -3523,7 +3523,7 @@ private def setVentSwitchLevel(indiceRoom, ventSwitch, switchLevel=100) {
 				get_LOG_INFO())
 		}         
 	} catch (e) {
-		if (switchLevel >0) {
+		if (switchLevel > 0) {
 			ventSwitch.clearObstruction() // alternate off/on to clear potential obstruction  			      
 			traceEvent(settings.logFilter, "setVentSwitchLevel>not able to set ${ventSwitch} to ${switchLevel} (exception $e), trying to turn it on",
 				true, get_LOG_WARN(),settings.detailedNotif)  
