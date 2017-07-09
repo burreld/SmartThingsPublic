@@ -46,7 +46,7 @@ def pageOne(){
 			input "thermostat", "capability.thermostat", title: "Select ecobee thermostat:", submitOnChange: true
 			
 			if(thermostat){
-				app(name: "zoneApps", appName: "Zone Automation", namespace: "BAXsoft", title: "New Zone", multiple: true, hideable: true, hidden: true)
+				app(name: "roomApps", appName: "Room Automation", namespace: "BAXsoft", title: "New Room", multiple: true, hideable: true, hidden: true)
 				
 			}
 		}
@@ -239,11 +239,33 @@ def updated() {
 }
 
 def initialize() {
+	subscribe(thermostat, "setClimate", setClimateHandler)
+	subscribe(thermostat, "thermostatOperatingState", thermostatOperatingHandler)
+	
+	
 	// nothing needed here, since the child apps will handle preferences/subscriptions
 	// this just logs some messages for demo/information purposes
 	log.debug "there are ${childApps.size()} child smartapps"
 	childApps.each {child ->
 		log.debug "child app: ${child.label}"
+	}	
+}
+
+def setClimateHandler(evt){
+	log.debug "climate change: ${evt.value}"
+	
+	childApps.each { child ->
+		log.debug "notify child of climate change -> $child.name - $evt.value"
+		child.updateClimateMode(evt.name)
+	}
+}
+
+def thermostatOperatingHandler(evt){
+	log.debug "thermostat operating mode change: ${evt.value}"
+	
+	childApps.each { child ->
+		log.debug "notify child of operating mode change -> $child.name - $evt.value"
+		child.updateOperatingMode(evt.name)
 	}
 }
 	
