@@ -239,9 +239,12 @@ def updated() {
 }
 
 def initialize() {
-	subscribe(thermostat, "setClimate", setClimateHandler)
+	subscribe(thermostat, "climateName", setClimateHandler)
 	subscribe(thermostat, "thermostatOperatingState", thermostatOperatingHandler)
 	
+	
+	
+	runEvery10Minutes(maintenance10Minutes)
 	
 	// nothing needed here, since the child apps will handle preferences/subscriptions
 	// this just logs some messages for demo/information purposes
@@ -251,21 +254,31 @@ def initialize() {
 	}	
 }
 
+def maintenance10Minutes(){
+	def ventPressure = [:]
+	
+	
+	childApps.each{ childAppFound -> 
+		childAppFound.roomVents().each { ventFound ->
+			ventPressure.put(ventFound.id, ventFound.currentValue("pressure"))
+	
+			log.debug "vent: ${ventFound.displayName}: ${ventFound.currentValue("pressure")}"
+		}
+	}
+	
+	
+}
+
 def setClimateHandler(evt){
 	log.debug "climate change: ${evt.value}"
 	
-	childApps.each { child ->
-		log.debug "notify child of climate change -> $child.name - $evt.value"
-		child.updateClimateMode(evt.name)
-	}
+	
 }
 
 def thermostatOperatingHandler(evt){
 	log.debug "thermostat operating mode change: ${evt.value}"
 	
-	childApps.each { child ->
-		log.debug "notify child of operating mode change -> $child.name - $evt.value"
-		child.updateOperatingMode(evt.name)
-	}
+	
 }
+
 	
