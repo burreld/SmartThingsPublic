@@ -82,32 +82,8 @@ def temperatureHandler(evt) {
 	setupInitialVentState()
 	setupInitialOperatingState()
 	
-	/*def tooCold = temperature1
-	def mySwitch = settings.switch1
 
-	// TODO: Replace event checks with internal state (the most reliable way to know if an SMS has been sent recently or not).
-	if (evt.doubleValue <= tooCold) {
-		log.debug "Checking how long the temperature sensor has been reporting <= $tooCold"
-
-		// Don't send a continuous stream of text messages
-		def deltaMinutes = 10 // TODO: Ask for "retry interval" in prefs?
-		def timeAgo = new Date(now() - (1000 * 60 * deltaMinutes).toLong())
-		def recentEvents = temperatureSensor1.eventsSince(timeAgo)?.findAll { it.name == "temperature" }
-		log.trace "Found ${recentEvents?.size() ?: 0} events in the last $deltaMinutes minutes"
-		def alreadySentSms = recentEvents.count { it.doubleValue <= tooCold } > 1
-
-		if (alreadySentSms) {
-			log.debug "SMS already sent within the last $deltaMinutes minutes"
-			// TODO: Send "Temperature back to normal" SMS, turn switch off
-		} else {
-			log.debug "Temperature dropped below $tooCold:  sending SMS and activating $mySwitch"
-			def tempScale = location.temperatureScale ?: "F"
-			send("${temperatureSensor1.displayName} is too cold, reporting a temperature of ${evt.value}${evt.unit?:tempScale}")
-			switch1?.on()
-		}
-	}
-*/
-	}
+}
 
 
 private def setupInitialVentState(){
@@ -149,13 +125,13 @@ private def updateClimateMode(name){
 	settings?.vents.each { ventRoutine(it) }
 }
 
-private def isTempPlusBufferSurpassed(){
+private Boolean isTempPlusBufferSurpassed(){
 	log.debug "calling istempplusbuffersurpassed()"
 	return tempSensor?.temperature ? isTempPlusBufferSurpassed(tempSensor?.temperature) : false
 }
 
-private def isTempPlusBufferSurpassed(roomTemp){
-	bool blnMet = false
+private Boolean isTempPlusBufferSurpassed(roomTemp){
+	Boolean blnMet = false
 		
 	def currentOperatingState = parent?.currentThermostat()?.currentThermostatOperatingState
 	
@@ -193,8 +169,8 @@ def roomVents(){
 	return settings?.vents
 }
 
-private def isAnUnconditionalClimate(name){
-	def isA = false
+private Boolean isAnUnconditionalClimate(name){
+	Boolean isA = false
 
 	isA = settings.unconditionalClimates?.contains(name)
 
@@ -205,8 +181,8 @@ private def isAnUnconditionalClimate(name){
 	return isA
 }
 
-private def isAMetConditionClimate(name){
-	def met = false
+private Boolean isAMetConditionClimate(name){
+	Boolean met = false
 
 	if(isAnUnconditionalClimate(name)){
 		// evaluate conditions
