@@ -244,7 +244,7 @@ def initialize() {
 	
 	
 	
-	runEvery10Minutes(maintenance10Minutes)
+	//runEvery10Minutes(maintenance10Minutes)
 	
 	// nothing needed here, since the child apps will handle preferences/subscriptions
 	// this just logs some messages for demo/information purposes
@@ -260,9 +260,10 @@ def maintenance10Minutes(){
 	
 	childApps.each{ childAppFound -> 
 		childAppFound.roomVents().each { ventFound ->
+			ventFound.refresh()
 			ventPressure.put(ventFound.id, ventFound.currentValue("pressure"))
 	
-			log.debug "vent: ${ventFound.displayName}: ${ventFound.currentValue("pressure")}"
+			log.debug "vent: ${ventFound.displayName}: ${ventFound.currentValue("pressure")} - ${ventFound.currentValue("switch")}"
 		}
 	}
 	

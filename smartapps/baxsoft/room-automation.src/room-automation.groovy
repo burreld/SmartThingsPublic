@@ -18,6 +18,25 @@ preferences {
 }
 
 def page1() {
+	def ecobeePrograms = getRemainingEcobeePrograms()
+	
+	//def tempSensors = getTempSensors()
+	dynamicPage(name: "page1") {
+		section("Room name") {
+			label title: "Enter room name:", defaultValue: app.label, required: true
+		}
+		section("Temperature Sensors in Room") {
+			input "tempSensor", "capability.temperatureMeasurement", title: "Select sensor:", required: false, submitOnChange: true
+		}
+		section ("ecobee thermostat: ${parent.currentThermostat()}"){
+			input "vents", "capability.switch", title: "Which vents are in this room?", multiple: true, submitOnChange: true
+			input (name:"unconditionalClimates", type:"enum", title: "Which ecobee climate/program(unconditional)? ", options: getRemainingEcobeePrograms(settings.conditionalClimates), multiple: true, defaultValue: settings.unconditionalClimates, required: false, submitOnChange: true)
+			input (name:"conditionalClimates", type:"enum", title: "Which ecobee climate/program(conditional)? ", options: getRemainingEcobeePrograms(settings.unconditionalClimates), multiple: true, defaultValue: settings.conditionalClimates, required: false, submitOnChange: true)
+		}
+	}
+}
+
+private def getRemainingEcobeePrograms(currentlySelectedSensors){
 	def ecobeePrograms=[]
 	// try to get the thermostat programs list (ecobee)
 	try {
@@ -26,17 +45,8 @@ def page1() {
 	} catch (e) {
 		log.debug "Not able to get the list of climates (ecobee), exception $e"
 	}
-
-	dynamicPage(name: "page1") {
-		section("Room name") {
-			label title: "Enter room name:", defaultValue: app.label, required: true
-		}
-		section ("ecobee thermostat: ${parent.currentThermostat()}"){
-			input "vents", "capability.switch", title: "Which vents are in this room?", multiple: true, submitOnChange: true
-			input (name:"unconditionalClimates", type:"enum", title: "Which ecobee climate/program(unconditional)? ", options: ecobeePrograms.findAll{ !settings.conditionalClimates?.contains(it) }, multiple: true, defaultValue: settings.unconditionalClimates, required: false, submitOnChange: true)
-			input (name:"conditionalClimates", type:"enum", title: "Which ecobee climate/program(conditional)? ", options: ecobeePrograms.findAll{ !settings.unconditionalClimates?.contains(it) }, multiple: true, defaultValue: settings.conditionalClimates, required: false, submitOnChange: true)
-		}
-	}
+	
+	return ecobeePrograms.findAll{ !currentlySelectedSensors?.contains(it) }
 }
 
 
@@ -59,10 +69,46 @@ def initialize() {
 
 	subscribe(parent?.currentThermostat(), "climateName", setClimateHandler)
 	subscribe(parent?.currentThermostat(), "thermostatOperatingState", thermostatOperatingHandler)
+	
+	subscribe(tempSensor, "temperature", temperatureHandler)
 
 	setupInitialVentState()
-
+	setupInitialOperatingState()
 }
+
+def temperatureHandler(evt) {
+	log.trace "temperature: $evt.value, $evt"
+
+	setupInitialVentState()
+	setupInitialOperatingState()
+	
+	/*def tooCold = temperature1
+	def mySwitch = settings.switch1
+
+	// TODO: Replace event checks with internal state (the most reliable way to know if an SMS has been sent recently or not).
+	if (evt.doubleValue <= tooCold) {
+		log.debug "Checking how long the temperature sensor has been reporting <= $tooCold"
+
+		// Don't send a continuous stream of text messages
+		def deltaMinutes = 10 // TODO: Ask for "retry interval" in prefs?
+		def timeAgo = new Date(now() - (1000 * 60 * deltaMinutes).toLong())
+		def recentEvents = temperatureSensor1.eventsSince(timeAgo)?.findAll { it.name == "temperature" }
+		log.trace "Found ${recentEvents?.size() ?: 0} events in the last $deltaMinutes minutes"
+		def alreadySentSms = recentEvents.count { it.doubleValue <= tooCold } > 1
+
+		if (alreadySentSms) {
+			log.debug "SMS already sent within the last $deltaMinutes minutes"
+			// TODO: Send "Temperature back to normal" SMS, turn switch off
+		} else {
+			log.debug "Temperature dropped below $tooCold:  sending SMS and activating $mySwitch"
+			def tempScale = location.temperatureScale ?: "F"
+			send("${temperatureSensor1.displayName} is too cold, reporting a temperature of ${evt.value}${evt.unit?:tempScale}")
+			switch1?.on()
+		}
+	}
+*/
+	}
+
 
 private def setupInitialVentState(){
 	def initialClimateName = parent?.currentThermostat().currentClimateName
@@ -71,6 +117,16 @@ private def setupInitialVentState(){
 
 	if(initialClimateName){
 		updateClimateMode(initialClimateName)
+	}	
+}
+
+private def setupInitialOperatingState(){
+	def initialOperatingState = parent?.currentThermostat().currentThermostatOperatingState
+	
+	log.debug "Initial operating state -> $initialOperatingState"
+	
+	if(initialOperatingState){
+		updateOperatingMode(initialOperatingState)
 	}
 }
 
@@ -80,7 +136,7 @@ private def updateClimateMode(name){
 	def ventRoutine
 
 	/* unconditional or is conditional meeting the conditions*/	
-	if(isAnUnconditionalClimate(name) || isAMetConditionClimate(name)){
+	if(isAnUnconditionalClimate(name) || (isAMetConditionClimate(name) && !isTempPlusBufferSurpassed())){
 		// open vents
 		log.debug "Open Vents in room"
 		ventRoutine = { vent -> openVent(vent)}
@@ -91,6 +147,46 @@ private def updateClimateMode(name){
 	}
 
 	settings?.vents.each { ventRoutine(it) }
+}
+
+private def isTempPlusBufferSurpassed(){
+	log.debug "calling istempplusbuffersurpassed()"
+	return tempSensor?.temperature ? isTempPlusBufferSurpassed(tempSensor?.temperature) : false
+}
+
+private def isTempPlusBufferSurpassed(roomTemp){
+	bool blnMet = false
+		
+	def currentOperatingState = parent?.currentThermostat().currentThermostatOperatingState
+	
+	log.debug "is temp plus surpassed Temp: ${currentCoolingSetPoint} and room temp: ${roomTemp}"
+	
+	if(currentOperatingState == "cooling"){
+		
+		
+		// get cooling temp
+		def currentCoolingSetpoint = parent?.currentThermostat().currentValue("coolingSetpointDisplay")
+		def currentVentShutoffSetpoint = currentCoolingSetpoint - 2
+		
+		log.debug "Current Target Temp: ${currentCoolingSetPoint} and room temp: ${roomTemp}"
+		
+		if(roomTemp <= currentVentShutoffSetpoint){
+			log.debug "exceeded close room: ${roomTemp} shutoff: ${currentVentShutoffSetpoint}"
+			
+			blnMet = true
+		}
+	}
+	else if(currentOperatingState == "heating") {
+		// get cooling temp
+		def currenHeatingSetpoint = parent?.currentThermostat().currentValue("heatingSetpointDisplay")
+		def currentVentShutoffSetpoint = currentHeatingSetpoint + 2
+		
+		if(roomTemp >= currentVentShutoffSetpoint){
+			blnMet = true
+		}
+	}
+	
+	return blnMet
 }
 
 def roomVents(){
@@ -161,18 +257,18 @@ def thermostatOperatingHandler(evt){
 }
 
 def openVent(vent){
-	log.debug "open vent: ${vent.id}"
+	log.debug "open vent: ${vent?.displayName}"
 
 	try{
 		if(vent.currentValue("switch") == "off") {
-			log.debug "open vent: ${vent.id} was off setting to level 100 and on"
+			log.debug "open vent: ${vent?.displayName} was off setting to level 100 and on"
 
 			vent.setLevel(100)
 			vent.on()
 		}
 		else {
 			if(vent.currentValue("level") != 100){
-				log.debug "open vent: ${vent.id} was on but level was not 100"
+				log.debug "open vent: ${vent?.displayName} was on but level was not 100"
 
 				vent.setLevel(100)
 				vent.on()
@@ -180,7 +276,7 @@ def openVent(vent){
 		}
 	}
 	catch(ex){
-		log.error("openVent->${vent.id}", ex)
+		log.error("openVent->${vent?.displayName}", ex)
 
 		ventSwitch.clearObstruction()
 
