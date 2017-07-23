@@ -136,7 +136,7 @@ private def updateClimateMode(name){
 	def ventRoutine
 
 	/* unconditional or is conditional meeting the conditions*/	
-	if(isAnUnconditionalClimate(name) || (isAMetConditionClimate(name) && !isTempPlusBufferSurpassed())){
+	if((isAnUnconditionalClimate(name) || isAMetConditionClimate(name)) && !isTempPlusBufferSurpassed()){
 		// open vents
 		log.debug "Open Vents in room"
 		ventRoutine = { vent -> openVent(vent)}
