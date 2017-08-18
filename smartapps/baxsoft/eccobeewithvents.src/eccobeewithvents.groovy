@@ -259,7 +259,7 @@ def maintenance10Minutes(){
 	
 	
 	childApps.each{ childAppFound -> 
-		childAppFound?.roomVents().each { ventFound ->
+		childAppFound.roomVents().each { ventFound ->
 			ventFound.refresh()
 			ventPressure.put(ventFound.id, ventFound.currentValue("pressure"))
 	
