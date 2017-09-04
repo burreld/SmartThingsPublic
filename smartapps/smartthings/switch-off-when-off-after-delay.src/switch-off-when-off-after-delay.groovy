@@ -39,9 +39,20 @@ def installed() {
 def updated() {
 	unsubscribe()
 	subscribe(triggerSwitch, "switch.off", contactClosedHandler)
+	subscribe(switch1, "switch.on", fanOnHandler)
 }
 
-def contactClosedHandler(evt) {
+def fanOnHandler(evt){
+	if(triggerSwitch.currentValue("switch") != "on"){
+		scheduleFanTurnOff()
+	}
+}
+
+def contactClosedHandler(evt) {	
+	scheduleFanTurnOff()	
+}
+
+def scheduleFanTurnOff(){
 	runIn(minutes * 60, turnOffHandler)
 }
 
