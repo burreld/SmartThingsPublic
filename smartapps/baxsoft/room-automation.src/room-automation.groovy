@@ -139,7 +139,6 @@ private Boolean isTempPlusBufferSurpassed(roomTemp){
 	
 	if(currentOperatingState == "cooling"){
 		
-		
 		// get cooling temp
 		def currentCoolingSetpoint = parent?.currentThermostat().currentValue("coolingSetpointDisplay")
 		def currentVentShutoffSetpoint = currentCoolingSetpoint - 2
